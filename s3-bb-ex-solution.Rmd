@@ -13,6 +13,11 @@ Beachten Sie die Hinweise zu Interface- und Konstruktorfunktionen etc im entspre
 nutzen Sie Vererbungsrelationen/Klassenhierarchien und geschickten *method dispatch* aus um mit möglichst wenig verschiedenen 
 Methoden auszukommen.^[Spoiler: 3 bis max. 4 Methoden reichen aus um alle Testfälle unten komplett abzudecken....]
 
+Meine Implementation:
+```{r, bb_sol, code = readLines("s3-bb-ex-sol.R")}
+```
+
+
 Überprüfen Sie ihre Implementation mit folgenden Testfällen:
 ```{r, bb_example, code = readLines("test-s3-bb.R")}
 ```

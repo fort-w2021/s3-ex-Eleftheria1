@@ -4,6 +4,18 @@ Lesen Sie das [`S3`](https://adv-r.hadley.nz/s3.html) Kapitel von H. Wickham's *
 Bearbeiten Sie (mindestens) die folgenden von dort übernommenen/inspirierten Aufgaben:
 
 - Was tut die `as.data.frame.data.frame()` Methode? Warum ist das verwirrend? Wie können Sie derartige Verwirrung in Ihrem eigenen Code vermeiden?
+
+Die Methode gibt bis auf Randfälle schlichtweg den Input (mit klasse data.frame) zurück, da es sich ja bereits um ein data.frame handelt.
+
+Verwirrend weil der "." Punkt nur die generic von der methode trennen sollte und nicht auch in Namen von beispielsweise funktionen vorkommen sollte.
+
+Vermeiden durch:
+
+1. Schlechte Klassenbenennung von data.frame -> besser zb dataframe
+2. Schlechte Benennung der generic as.<class> -> besser zb as_<class>
+
+
+
 - Beschreiben/erklären Sie das Verhalten dieses Codes:
 ```r
 set.seed(1014)
@@ -13,6 +25,11 @@ mean(some_days)
 mean(unclass(some_days))
 # [1] 18230.4
 ```
+Als erstes wird die generic "+" für class Date aufgerufen.
+Da die Klasse Date eigentlich als integers (class numeric) abgespeichert wird ist es sehr straightforward numerics aus sample zu addieren.
+Als nächstes wird mean.Date auf some_days aufgerufen und letztendlich zeigt nach unclass die Klasse Date ihr wahres Gesicht also numeric :) und dann wird die methode mean.default benutzt.
+
+
 - Welche Klasse hat `x` im folgenden Code? Auf welchem *base type* basiert diese Klasse? Welche Attribute nutzt sie und wie sind die mathematischen Eigenschaften von Verteilungsfunktionen hier konkret implementiert? 
 ```r
 x <- ecdf(rpois(100, 10))
@@ -21,13 +38,75 @@ x
 # Call: ecdf(rpois(100, 10))
 #  x[1:15] =      1,      4,      5,  ...,     16,     17
 ```
+x hat die klassen ecdf, stepfun und function, basierend auf dem base type closure. Sie nutzt die Attribute class und call
+Mathematischen Eigenschaften: 
+
+- monoton wachsend: sort(x)
+- treppenfunktion (mit der klasse stepfun angedeutet)
+- rechtsseitig stetig: cumsum...
+- lim -inf = 0: yleft = 0, lim inf = 1: yright = 1
+
+
 - Schreiben Sie einen neuen low-level Konstruktor für `data.frame`-Objekte (ohne die Funktionen `as.data.frame()` oder `data.frame()` zu benutzen, selbstverständlich). Machen Sie sich zunächst klar: Auf welchem *base type* basiert `data.frame`? Welche Attribute nutzt `data.frame`? Welche Restriktionen gelten für die verschiedenen Einträge und Attribute?  
     *Hinweis*: Sehen Sie sich dafür zunächst mal so etwas wie `str(unclass(<irgend ein data.frame>))` an.
-- Kategorisieren Sie die Klassen der Rückgabe-Objekte von `lm(), factor(), table(), as.Date(), as.POSIXct(), ecdf(), ordered(), I()` in die Klassentypen *vector class*, *record style class*, *scalar class* die in *Advanced R* beschrieben  werden.
-- Wie sähe ein Konstruktor `new_lm` für Objekte der Klasse `lm` aus? Warum wäre ein solcher Konstruktor vermutlich nicht besonders nützlich? 
-- Lesen Sie den Quellcode für `t()` und `t.test()`. Ist `t.test()` eine generische S3 Funktion oder eine S3 Methode? Was passiert **im Detail** wenn sie `t()` auf ein S3-Objekt mit Klasse `test` anwenden (s.u.)? Warum?
-```r
-x <- structure(1:10, class = "test")
-t(x)
+    
+```{r}
+new_data.frame <- function(..., rownames = NULL) {
+  dataframe <- list(...)
+  # here just basic checks
+  # check '...' arg
+  # force named inputs in the '...' arg with names arg in assert_list
+  checkmate::assert_list(dataframe, all.missing = FALSE, names = "unique")
+  elements_check <- vapply(1:length(dataframe), function(element_ind){
+    is_vec <- checkmate::test_atomic_vector(dataframe[[element_ind]])
+    length <- length(dataframe[[element_ind]])
+    c(is_vec, length)
+  }, FUN.VALUE = numeric(2))
+  if (any(elements_check[1,] == 0)) {
+    stop("Columns of dataframe must be atomic vectors.")
+  }
+  if (length(unique(elements_check[2,])) != 1) {
+    stop("Columns must have the same length.")
+  }
+  # check rownames
+  nrows <- length(dataframe[[1]])
+  if (is.null(rownames)) {
+    rownames <- as.character(1:nrows)
+  }
+  checkmate::assert_character(rownames, len = nrows,
+                              any.missing = FALSE,
+                              unique = TRUE)
+  
+  structure(dataframe,
+            names = names(dataframe),
+            row.names = rownames,
+            class = "data.frame")
+}
+
+# print(new_data.frame(a = 1:4,b = c("a","b","d","e"),x = factor(1:4)))
 ```
 
+Mit den Argumenten wie `check.rows = FALSE, check.names = TRUE, fix.empty.names = TRUE, stringsAsFactors = default.stringsAsFactors()` wird in der validator function umgegangen und dementsprechend adäquate inputs weiter an den constructor propagiert.
+    
+- Kategorisieren Sie die Klassen der Rückgabe-Objekte von `lm(), factor(), table(), as.Date(), as.POSIXct(), ecdf(), ordered(), I()` in die Klassentypen *vector class*, *record style class*, *scalar class* die in *Advanced R* beschrieben  werden.
+
+scalar class: lm(), ecdf(), I(), table()
+record style class: 
+vector class: factor(), ordered(), as.Date(), as.POSIXct()
+
+- Wie sähe ein Konstruktor `new_lm` für Objekte der Klasse `lm` aus? Warum wäre ein solcher Konstruktor vermutlich nicht besonders nützlich? 
+
+
+```{r, eval=FALSE}
+# pseudo code:
+new_lm <- function(lots of input like data,formula,...) {
+  # basic type checks
+  
+  lm_list <- # put it together in a big list of length 12
+  structure(lm_list,
+            names = lm_names,
+            class = "lm")
+}
+```
+
+Im prinzip werden die ganzen inputs dieser Funktion (da sie nicht im Konstruktor selbst berechnet werden sollten) lediglich in einer Liste zusammengefasst und mit der richtigen Klasse ausgestattet. Daher ist die Funktion wirklich sehr unspektakulär. 

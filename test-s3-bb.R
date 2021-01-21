@@ -59,3 +59,4 @@ expect_equivalent(levels(bb(test_ordered)),
                   sort(bb_testvec)[c(1, 3, 2, 4:8)]) #alphabetic order changes!
 expect_is(bb(test_ordered), "bb")
 expect_is(bb(test_ordered), "ordered")
+
